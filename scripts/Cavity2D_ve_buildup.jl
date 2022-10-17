@@ -101,17 +101,18 @@ end
 function main()
     # physics
     lx,ly      = 20.0,10.0
-    η0         = (ice = 1.0 , air = 1e-8)
-    G0         = (ice = 1e20, air = 1e20)
+    η0         = (ice = 1.0 , air = 1e-6)
+    G0         = (ice = 1.0 , air = 1e20)
     ρg0        = (ice = 0.9 , air = 0.0 )
     r_cav      = 0.4*min(lx,ly)
     r_dep      = 1.5*min(lx,ly)
     x0,y0c,y0d = 0.0,0.0*ly,1.4*ly
-    dt         = 1.0
+    ξ          = 1.0
+    dt         = η0.ice/(G0.ice*ξ + 1e-15)
     # numerics
     nx         = 256
     ny         = ceil(Int,nx*ly/lx)
-    nt         = 1
+    nt         = 5
     ϵtol       = (1e-6,1e-6,1e-6)
     maxiter    = 50max(nx,ny)
     ncheck     = ceil(Int,5max(nx,ny))
@@ -125,36 +126,36 @@ function main()
     vpdτ       = 0.5*min(dx,dy)/sqrt(2.1)
     # array allocation
     fields = (
-        Vx       = zeros(nx+1,ny  ),
-        Vy       = zeros(nx  ,ny+1),
-        Pr       = zeros(nx  ,ny  ),
-        ∇V       = zeros(nx  ,ny  ),
-        τxx      = zeros(nx  ,ny  ),
-        τyy      = zeros(nx  ,ny  ),
-        τxy      = zeros(nx+1,ny+1),
-        τxx_old  = zeros(nx  ,ny  ),
-        τyy_old  = zeros(nx  ,ny  ),
-        τxy_old  = zeros(nx+1,ny+1),
-        η        = zeros(nx  ,ny  ),
-        η_xy     = zeros(nx-1,ny-1),
-        τII      = zeros(nx  ,ny  ),
-        Vmag     = zeros(nx  ,ny  ),
-        η_veτ    = zeros(nx  ,ny  ),
-        η_veτ_xy = zeros(nx-1,ny-1),
-        dτ_ρx    = zeros(nx-1,ny  ),
-        dτ_ρy    = zeros(nx  ,ny-1),
-        Gdτ      = zeros(nx  ,ny  ),
-        Gdτ_xy   = zeros(nx-1,ny-1),
-        G        = zeros(nx  ,ny  ),
-        G_xy     = zeros(nx-1,ny-1),
-        r_Vx     = zeros(nx-1,ny-2),
-        r_Vy     = zeros(nx-2,ny-1),
-        ρgy_c    = zeros(nx  ,ny  ),
-        ρgx      = zeros(nx-1,ny  ),
-        ρgy      = zeros(nx  ,ny-1),
-        phase    = zeros(nx  ,ny  ),
-        ηb       = zeros(nx  ,ny  ),
-        ητ       = zeros(nx  ,ny  ),
+    Vx         = zeros(nx+1,ny  ),
+    Vy         = zeros(nx  ,ny+1),
+    Pr         = zeros(nx  ,ny  ),
+    ∇V         = zeros(nx  ,ny  ),
+    τxx        = zeros(nx  ,ny  ),
+    τyy        = zeros(nx  ,ny  ),
+    τxy        = zeros(nx+1,ny+1),
+    τxx_old    = zeros(nx  ,ny  ),
+    τyy_old    = zeros(nx  ,ny  ),
+    τxy_old    = zeros(nx+1,ny+1),
+    η          = zeros(nx  ,ny  ),
+    η_xy       = zeros(nx-1,ny-1),
+    τII        = zeros(nx  ,ny  ),
+    Vmag       = zeros(nx  ,ny  ),
+    η_veτ      = zeros(nx  ,ny  ),
+    η_veτ_xy   = zeros(nx-1,ny-1),
+    dτ_ρx      = zeros(nx-1,ny  ),
+    dτ_ρy      = zeros(nx  ,ny-1),
+    Gdτ        = zeros(nx  ,ny  ),
+    Gdτ_xy     = zeros(nx-1,ny-1),
+    G          = zeros(nx  ,ny  ),
+    G_xy       = zeros(nx-1,ny-1),
+    r_Vx       = zeros(nx-1,ny-2),
+    r_Vy       = zeros(nx-2,ny-1),
+    ρgy_c      = zeros(nx  ,ny  ),
+    ρgx        = zeros(nx-1,ny  ),
+    ρgy        = zeros(nx  ,ny-1),
+    phase      = zeros(nx  ,ny  ),
+    ηb         = zeros(nx  ,ny  ),
+    ητ         = zeros(nx  ,ny  ),
     )
     # initialisation
     compte_η_G_ρg!(fields,η0,G0,ρg0,xc,yc,x0,y0c,y0d,r_cav,r_dep)
@@ -165,13 +166,14 @@ function main()
     iter_evo = Float64[]
     errs_evo = ElasticMatrix{Float64}(undef,length(ϵtol),0)
     opts = (aspect_ratio=1, xlims=extrema(xc), ylims=extrema(yc), c=:turbo, framestyle=:box)
-    mask = copy(fields.phase); mask[mask.<0.6].=NaN
+    mask = copy(fields.phase); mask[mask.<0.7].=NaN
+    t = 0.0; evo_t=[]; evo_τxx=[]
     # time loop
     for it = 1:nt
         @printf("it=%d\n",it)
         update_old!(fields)
         errs = 2.0.*ϵtol; iter = 1
-        resize!(iter_evo,0);resize!(errs_evo,length(ϵtol),0)
+        resize!(iter_evo,0); resize!(errs_evo,length(ϵtol),0)
         while any(errs .>= ϵtol) && iter <= maxiter
             update_iteration_params!(fields,dt,re_mech,vpdτ,lτ,r)
             update_stresses!(fields,r,dt,dx,dy)
@@ -185,14 +187,16 @@ function main()
             end
             iter += 1
         end
+        t += dt
+        push!(evo_t,t); push!(evo_τxx,maximum(fields.τxx))
         # visualisation
         fields.Vmag .= sqrt.(ameanx(fields.Vx).^2 + ameany(fields.Vy).^2)
         fields.τII  .= sqrt.(0.5.*(fields.τxx.^2 .+ fields.τyy.^2) .+ ameanxy(fields.τxy).^2)
         p1=heatmap(xc,yc,log10.(fields.η)',title="log10(η)";opts...)
-        p2=heatmap(xc,yc,mask' .* fields.Pr',title="Pressure";opts...)
-        # p3=heatmap(xc,yc,mask' .*  fields.Vmag',title="Vmag";opts...)
+        # p2=heatmap(xc,yc,mask' .* fields.Pr',title="Pressure";opts...)
+        p2=heatmap(xc,yc,mask' .* fields.τII',title="Pressure";opts...)
         p3=heatmap(xc,yc,mask' .* fields.Vmag',title="Vmag";opts...)
-        p4=heatmap(xc,yc,mask' .* fields.τII',title="τII";opts...)
+        p4=plot(evo_t,evo_τxx,legend=false,xlabel="time",ylabel="max(τxx)",linewidth=0,markershape=:circle,markersize=3,framestyle=:box)
         display(plot(p1,p2,p3,p4,layout=(2,2)))
     end
     return
