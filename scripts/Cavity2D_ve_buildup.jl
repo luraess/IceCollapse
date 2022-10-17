@@ -102,7 +102,7 @@ function main()
     # physics
     lx,ly      = 20.0,10.0
     η0         = (ice = 1.0 , air = 1e-6)
-    G0         = (ice = 1.0 , air = 1e20)
+    G0         = (ice = 1.0 , air = 1e6)
     ρg0        = (ice = 0.9 , air = 0.0 )
     r_cav      = 0.4*min(lx,ly)
     r_dep      = 1.5*min(lx,ly)
