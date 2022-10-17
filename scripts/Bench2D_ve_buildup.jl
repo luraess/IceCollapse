@@ -54,7 +54,6 @@ end
 end
 
 @views function update_stresses!((;Pr,τxx,τyy,τxy,τxx_old,τyy_old,τxy_old,Vx,Vy,∇V,η_veτ,η_veτ_xy,η,η_xy,Gdτ,G,G_xy,ηb),r,dt,dx,dy)
-    nx,ny = size(Pr)
     ∇V   .= diff(Vx,dims=1)./dx .+ diff(Vy,dims=2)./dy
     Pr  .-= r.*Gdτ.*∇V
     τxx .+= (.-(τxx .- τxx_old)./(G.*dt) .- τxx./η .+ 2.0.*(diff(Vx,dims=1)./dx .- ∇V./3.0)).*η_veτ
@@ -64,7 +63,6 @@ end
 end
 
 @views function update_velocities!((;Vx,Vy,Pr,τxx,τyy,τxy,dτ_ρx,dτ_ρy,η),dx,dy)
-    nx,ny = size(Pr)
     Vx[2:end-1,:] .+= dτ_ρx.*(diff(.-Pr.+τxx,dims=1)./dx .+ diff(τxy[2:end-1,:],dims=2)./dy)
     Vy[:,2:end-1] .+= dτ_ρy.*(diff(.-Pr.+τyy,dims=2)./dy .+ diff(τxy[:,2:end-1],dims=1)./dx)
     return
