@@ -40,36 +40,34 @@ const av4 = amean4
     return
 end
 
-@views function update_iteration_params!((;η_veτ,η_veτ_xy,dτ_ρx,dτ_ρy,Gdτ,Gdτ_xy,η,η_xy,G,G_xy,ηb,ητ),dt,re_mech,vpdτ,lτ,r)
-    ητ[2:end-1,2:end-1] .= maxloc(η)
+@views function update_iteration_params!((;η_veτ,dτ_ρx,dτ_ρy,Gdτ,η,G,ηb,ητ,η_vep),dt,re_mech,vpdτ,lτ,r,it)
+    # if it<8
+    #     ητ[2:end-1,2:end-1] .= maxloc(η)
+    # else
+    #     ητ[2:end-1,2:end-1] .= maxloc(η_vep)
+    # end
+    ητ[2:end-1,2:end-1] .= maxloc(amean.(η,η_vep)./2)
     bc2!(ητ)
-    Gdτ      .= ητ.*(re_mech/lτ*vpdτ/(r+2.0))
-    Gdτ_xy   .= avxy(Gdτ)
-    dτ_ρx    .= vpdτ*lτ./re_mech./avx(ητ)
-    dτ_ρy    .= vpdτ*lτ./re_mech./avy(ητ)
-    η_veτ    .= 1.0./(1.0./Gdτ    .+ 1.0./η    .+ 1.0./(G.*dt))
-    η_veτ_xy .= 1.0./(1.0./Gdτ_xy .+ 1.0./η_xy .+ 1.0./(G_xy.*dt))
+    Gdτ   .= ητ.*(re_mech/lτ*vpdτ/(r+2.0))
+    dτ_ρx .= vpdτ*lτ./re_mech./avx(ητ)
+    dτ_ρy .= vpdτ*lτ./re_mech./avy(ητ)
+    η_veτ .= 1.0./(1.0./Gdτ .+ 1.0./η .+ 1.0./(G.*dt))
     return
 end
 
-@views function update_stresses!((;εxx1,εyy1,εxy1,εII1,Pr,εxx,εyy,εxy,εxyv,εII,dτxx,dτyy,dτxy,τxx,τyy,τxy,τxyv,τxx_old,τyy_old,τxy_old,Vx,Vy,∇V,η_veτ,η_veτ_xy,η,η_xy,Gdτ,G,G_xy,ηb,F,λ,dQdτxx,dQdτyy,dQdτxy,τII,η_vep,Fchk),τ_y,sinϕ,η_reg,r,dt,dx,dy)
-    ∇V   .= diff(Vx,dims=1)./dx .+ diff(Vy,dims=2)./dy
-    Pr  .-= r.*Gdτ.*∇V
-    # τxx .+= (.-(τxx .- τxx_old)./(G.*dt) .- τxx./η .+ 2.0.*(diff(Vx,dims=1)./dx .- ∇V./3.0)).*η_veτ
-    # τyy .+= (.-(τyy .- τyy_old)./(G.*dt) .- τyy./η .+ 2.0.*(diff(Vy,dims=2)./dy .- ∇V./3.0)).*η_veτ
-    # τxy[2:end-1,2:end-1] .+= (.-(τxy[2:end-1,2:end-1] .- τxy_old[2:end-1,2:end-1])./(G_xy.*dt) .- τxy[2:end-1,2:end-1]./η_xy .+ (diff(Vx[2:end-1,:],dims=2)./dy .+ diff(Vy[:,2:end-1],dims=1)./dx)).*η_veτ_xy
+@views function update_stresses!((;εxx_ve,εyy_ve,εxy_ve,εII_ve,Pr,εxx,εyy,εxy,εxyv,εII,dτxx,dτyy,dτxy,τxx,τyy,τxy,τxyv,τxx_old,τyy_old,τxy_old,Vx,Vy,∇V,η_veτ,η,Gdτ,G,ηb,F,λ,dQdτxx,dQdτyy,dQdτxy,τII,η_vep,Fchk),τ_y,sinϕ,η_reg,r,dt,dx,dy)
+    ∇V     .= diff(Vx,dims=1)./dx .+ diff(Vy,dims=2)./dy
+    Pr    .-= r.*Gdτ.*∇V
     # strain rates
     εxx    .= diff(Vx,dims=1)./dx .- ∇V./3.0
     εyy    .= diff(Vy,dims=2)./dy .- ∇V./3.0
     εxyv[2:end-1,2:end-1] .= 0.5*(diff(Vx[2:end-1,:],dims=2)./dy .+ diff(Vy[:,2:end-1],dims=1)./dx)
     εxy    .= ameanxy(εxyv)
-    εII    .= sqrt.(0.5.*(εxx.^2 .+ εyy.^2) .+ εxy.^2)
-
-    εxx1   .= εxx .+ 0.5.*τxx_old./(G.*dt)
-    εyy1   .= εyy .+ 0.5.*τyy_old./(G.*dt)
-    εxy1   .= εxy .+ 0.5.*τxy_old./(G.*dt)
-    εII1   .= sqrt.(0.5.*(εxx1.^2 .+ εyy1.^2) .+ εxy1.^2)
-
+    # visco-elastic strain rates
+    εxx_ve .= εxx .+ 0.5.*τxx_old./(G.*dt)
+    εyy_ve .= εyy .+ 0.5.*τyy_old./(G.*dt)
+    εxy_ve .= εxy .+ 0.5.*τxy_old./(G.*dt)
+    εII_ve .= sqrt.(0.5.*(εxx_ve.^2 .+ εyy_ve.^2) .+ εxy_ve.^2)
     # stress increments
     dτxx   .= (.-(τxx .- τxx_old)./(G.*dt) .- τxx./η .+ 2.0.*εxx).*η_veτ
     dτyy   .= (.-(τyy .- τyy_old)./(G.*dt) .- τyy./η .+ 2.0.*εyy).*η_veτ
@@ -87,7 +85,7 @@ end
     τxyv[2:end-1,2:end-1] .= ameanxy(τxy)
     τII   .= sqrt.(0.5.*(τxx.^2 .+ τyy.^2) .+ τxy.^2)
     Fchk  .= τII .- τ_y .- Pr.*sinϕ .- λ.*η_reg
-    η_vep .= τII ./ 2.0 ./ εII1
+    η_vep .= τII ./ 2.0 ./ εII_ve
     return
 end
 
@@ -116,11 +114,11 @@ function main()
     εbg        = 1.0
     dt         = η0/G0/ξ
     # numerics
-    nx,ny      = 63,63
+    nx,ny      = 127,127
     nt         = 15
     η_reg      = 8.0e-3             # regularisation "viscosity"
     ϵtol       = (1e-6,1e-6,1e-6)
-    maxiter    = 50max(nx,ny)
+    maxiter    = 100max(nx,ny)
     ncheck     = ceil(Int,5max(nx,ny))
     r          = 0.7
     re_mech    = 3π
@@ -146,11 +144,9 @@ function main()
     τII        = zeros(nx  ,ny  ),
     Vmag       = zeros(nx  ,ny  ),
     η_veτ      = zeros(nx  ,ny  ),
-    η_veτ_xy   = zeros(nx-1,ny-1),
     dτ_ρx      = zeros(nx-1,ny  ),
     dτ_ρy      = zeros(nx  ,ny-1),
     Gdτ        = zeros(nx  ,ny  ),
-    Gdτ_xy     = zeros(nx-1,ny-1),
     r_Vx       = zeros(nx-1,ny-2),
     r_Vy       = zeros(nx-2,ny-1),
     ηb         = zeros(nx  ,ny  ),
@@ -165,18 +161,16 @@ function main()
     εyy        = zeros(nx  ,ny  ),
     εxy        = zeros(nx  ,ny  ),
     εII        = zeros(nx  ,ny  ),
-    εxx1       = zeros(nx  ,ny  ),
-    εyy1       = zeros(nx  ,ny  ),
-    εxy1       = zeros(nx  ,ny  ),
-    εII1       = zeros(nx  ,ny  ),
+    εxx_ve     = zeros(nx  ,ny  ),
+    εyy_ve     = zeros(nx  ,ny  ),
+    εxy_ve     = zeros(nx  ,ny  ),
+    εII_ve     = zeros(nx  ,ny  ),
     εxyv       = zeros(nx+1,ny+1),
     dτxx       = zeros(nx  ,ny  ),
     dτyy       = zeros(nx  ,ny  ),
     dτxy       = zeros(nx  ,ny  ),
     η          = η0.*ones(nx  ,ny  ),
-    η_xy       = η0.*ones(nx-1,ny-1),
     G          = G0.*ones(nx  ,ny  ),
-    G_xy       = G0.*ones(nx-1,ny-1),
     η_vep      = η0.*ones(nx  ,ny  ),
     )
     # initialisation
@@ -186,8 +180,6 @@ function main()
     fields.G[rad.<radi] .= Gi
     fields.Vx   .=   εbg.*Xvx
     fields.Vy   .= .-εbg.*Yvy
-    fields.η_xy .= hmeanxy(fields.η)
-    fields.G_xy .= hmeanxy(fields.G)
     iter_evo = Float64[]; errs_evo = ElasticMatrix{Float64}(undef,length(ϵtol),0)
     opts = (aspect_ratio=1, xlims=extrema(xc), ylims=extrema(yc), c=:turbo, framestyle=:box)
     t = 0.0; evo_t=[]; evo_τxx=[]
@@ -198,7 +190,7 @@ function main()
         errs = 2.0.*ϵtol; iter = 1
         resize!(iter_evo,0); resize!(errs_evo,length(ϵtol),0)
         while any(errs .>= ϵtol) && iter <= maxiter
-            update_iteration_params!(fields,dt,re_mech,vpdτ,lτ,r)
+            update_iteration_params!(fields,dt,re_mech,vpdτ,lτ,r,it)
             update_stresses!(fields,τ_y,sinϕ,η_reg,r,dt,dx,dy)
             update_velocities!(fields,dx,dy)
             if iter % ncheck == 0
@@ -215,7 +207,7 @@ function main()
         # visualisation
         fields.Vmag .= sqrt.(ameanx(fields.Vx).^2 + ameany(fields.Vy).^2)
         p1=heatmap(xc,yc,ameanx(fields.Vx)',title="Vx";opts...)
-        p2=heatmap(xc,yc,fields.η_vep',title="η_vep";opts...)
+        p2=heatmap(xc,yc,hmean.(fields.η_vep,fields.η)',title="η_vep";opts...)
         p3=heatmap(xc,yc,fields.τII',title="τII";opts...)
         p4=plot(evo_t,evo_τxx,legend=false,xlabel="time",ylabel="max(τxx)",linewidth=0,markershape=:circle,markersize=3,framestyle=:box)
         display(plot(p1,p2,p3,p4,layout=(2,2)))
