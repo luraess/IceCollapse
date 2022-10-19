@@ -33,11 +33,13 @@ const av4 = amean4
 # 1./Kdτ.*(Pr - Pr_it) + Pr./ηb = -∇V
 # Pr .+= (.-Pr./ηb .- ∇V)./(1.0/Kdτ + 1.0./ηb)
 
-@views function update_old!((;τxx_old,τyy_old,τxy_old,Pr_old,τxx,τyy,τxy,Pr))
+@views function update_old!((;τxx_old,τyy_old,τxy_old,Pr_old,τxx,τyy,τxy,Pr,Pr_c,λ))
     τxx_old .= τxx
     τyy_old .= τyy
     τxy_old .= τxy
+    Pr      .= Pr_c
     Pr_old  .= Pr
+    λ       .= 0.0
     return
 end
 
@@ -123,7 +125,7 @@ function main()
     ncheck     = ceil(Int,5max(nx,ny))
     r          = 0.7
     re_mech    = 3π
-    relλ       = 0.2
+    relλ       = 0.1
     # preprocessing
     dx,dy      = lx/nx,ly/ny
     xv,yv      = LinRange(-lx/2,lx/2,nx+1),LinRange(-ly/2,ly/2,ny+1)
@@ -192,7 +194,6 @@ function main()
     for it = 1:nt
         @printf("it=%d\n",it)
         update_old!(fields)
-        fields.λ .= 0.0
         errs = 2.0.*ϵtol; iter = 1
         resize!(iter_evo,0); resize!(errs_evo,length(ϵtol),0)
         while any(errs .>= ϵtol) && iter <= maxiter
@@ -208,7 +209,6 @@ function main()
             end
             iter += 1
         end
-        fields.Pr .= fields.Pr_c
         t += dt
         push!(evo_t,t); push!(evo_τxx,maximum(fields.τxx))
         # visualisation
