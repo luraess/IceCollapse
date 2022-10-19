@@ -52,7 +52,7 @@ end
     return
 end
 
-@views function update_stresses!((;εxx_ve,εyy_ve,εxy_ve,εII_ve,Pr,Pr_c,εxx,εyy,εxy,εxyv,εII,dτxx,dτyy,dτxy,τxx,τyy,τxy,τxyv,τxx_old,τyy_old,τxy_old,Vx,Vy,∇V,η_veτ,η,Gdτ,G,ηb,F,λ,dQdτxx,dQdτyy,dQdτxy,τII,η_vep,Fchk,dPr,Pr_old),K,τ_y,sinϕ,sinψ,η_reg,r,dt,dx,dy)
+@views function update_stresses!((;εxx_ve,εyy_ve,εxy_ve,εII_ve,Pr,Pr_c,εxx,εyy,εxy,εxyv,εII,dτxx,dτyy,dτxy,τxx,τyy,τxy,τxyv,τxx_old,τyy_old,τxy_old,Vx,Vy,∇V,η_veτ,η,Gdτ,G,ηb,F,λ,dQdτxx,dQdτyy,dQdτxy,τII,η_vep,Fchk,dPr,Pr_old),K,τ_y,sinϕ,sinψ,η_reg,r,relλ,dt,dx,dy)
     ∇V     .= diff(Vx,dims=1)./dx .+ diff(Vy,dims=2)./dy
     dPr    .= .-∇V .- (Pr .- Pr_old)./K./dt
     Pr    .+= r.*Gdτ.*dPr
@@ -73,8 +73,7 @@ end
     τII    .= sqrt.(0.5.*((τxx.+dτxx).^2 .+ (τyy.+dτyy).^2) .+ (τxy.+dτxy).^2)
     # yield function
     F      .= τII .- τ_y .- Pr.*sinϕ
-    rel     = 0.5
-    λ      .= (1.0 .- rel).*λ .+ rel.*(max.(F,0.0)./(η_veτ .+ η_reg .+ K.*dt.*sinϕ.*sinψ))
+    λ      .= (1.0 .- relλ).*λ .+ relλ.*(max.(F,0.0)./(η_veτ .+ η_reg .+ K.*dt.*sinϕ.*sinψ))
     dQdτxx .= 0.5.*(τxx.+dτxx)./τII
     dQdτyy .= 0.5.*(τyy.+dτyy)./τII
     dQdτxy .=      (τxy.+dτxy)./τII
@@ -107,23 +106,24 @@ function main()
     radi       = 0.01*lx
     τ_y        = 1.6
     sinϕ       = sind(30)
-    sinψ       = sind(5)
+    sinψ       = sind(10)
     η0         = 1.0
     G0         = 1.0
     Gi         = G0/2
-    K          = 2*G0
+    K          = 4*G0
     ξ          = 4.0
     εbg        = 1.0
-    dt         = η0/G0/ξ
+    dt         = η0/G0/ξ/1.5
     # numerics
-    nx,ny      = 63,63
+    nx,ny      = 127,127
     nt         = 50
-    η_reg      = 8.0e-3             # regularisation "viscosity"
+    η_reg      = 8.0e-3
     ϵtol       = (1e-6,1e-6,1e-6)
     maxiter    = 100max(nx,ny)
     ncheck     = ceil(Int,5max(nx,ny))
     r          = 0.7
     re_mech    = 3π
+    relλ       = 0.2
     # preprocessing
     dx,dy      = lx/nx,ly/ny
     xv,yv      = LinRange(-lx/2,lx/2,nx+1),LinRange(-ly/2,ly/2,ny+1)
@@ -197,7 +197,7 @@ function main()
         resize!(iter_evo,0); resize!(errs_evo,length(ϵtol),0)
         while any(errs .>= ϵtol) && iter <= maxiter
             update_iteration_params!(fields,dt,re_mech,vpdτ,lτ,r,it)
-            update_stresses!(fields,K,τ_y,sinϕ,sinψ,η_reg,r,dt,dx,dy)
+            update_stresses!(fields,K,τ_y,sinϕ,sinψ,η_reg,r,relλ,dt,dx,dy)
             update_velocities!(fields,dx,dy)
             if iter % ncheck == 0
                 # update residuals
