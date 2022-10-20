@@ -54,7 +54,6 @@ end
 end
 
 @views function update_stresses!((;Pr,τxx,τyy,τxy,τxx_old,τyy_old,τxy_old,Vx,Vy,∇V,η_veτ,η_veτ_xy,η,η_xy,Gdτ,G,G_xy,ηb),r,dt,dx,dy)
-    nx,ny = size(Pr)
     ∇V   .= diff(Vx,dims=1)./dx .+ diff(Vy,dims=2)./dy
     Pr  .-= r.*Gdτ.*∇V
     # Pr .+= (.-Pr./ηb .- ∇V)./(1.0./(r.*Gdτ) + 1.0./ηb)
@@ -65,7 +64,6 @@ end
 end
 
 @views function update_velocities!((;Vx,Vy,Pr,τxx,τyy,τxy,dτ_ρx,dτ_ρy,η,ρgx,ρgy,phase),dx,dy)
-    nx,ny = size(Pr)
     Vx[2:end-1,:] .+= dτ_ρx.*(diff(.-Pr.+τxx,dims=1)./dx .+ diff(τxy[2:end-1,:],dims=2)./dy .- ρgx)
     Vy[:,2:end-1] .+= dτ_ρy.*(diff(.-Pr.+τyy,dims=2)./dy .+ diff(τxy[:,2:end-1],dims=1)./dx .- ρgy)
     Vx[:,1]       .= 1.0./3.0.*Vx[:,2]
@@ -102,7 +100,7 @@ function main()
     # physics
     lx,ly      = 20.0,10.0
     η0         = (ice = 1.0 , air = 1e-6)
-    G0         = (ice = 1.0 , air = 1e6)
+    G0         = (ice = 1.0 , air = 1e6 )
     ρg0        = (ice = 0.9 , air = 0.0 )
     r_cav      = 0.4*min(lx,ly)
     r_dep      = 1.5*min(lx,ly)
