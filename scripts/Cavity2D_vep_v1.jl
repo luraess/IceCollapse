@@ -32,7 +32,7 @@ const av4 = amean4
     return
 end
 
-@views function update_iteration_params!((;η_veτ,η,ητ))
+@views function update_iteration_params!((;η,ητ))
     ητ[2:end-1,2:end-1] .= maxloc(η); bc2!(ητ)
     return
 end
@@ -132,18 +132,10 @@ function main()
     εxy        = zeros(nx  ,ny  ),
     εxyv       = zeros(nx+1,ny+1),
     η          = zeros(nx  ,ny  ),
-    η_xy       = zeros(nx-1,ny-1),
     τII        = zeros(nx  ,ny  ),
     Vmag       = zeros(nx  ,ny  ),
     dPr        = zeros(nx  ,ny  ),
-    η_veτ      = zeros(nx  ,ny  ),
-    η_veτ_xy   = zeros(nx-1,ny-1),
-    dτ_ρx      = zeros(nx-1,ny  ),
-    dτ_ρy      = zeros(nx  ,ny-1),
-    Gdτ        = zeros(nx  ,ny  ),
-    Gdτ_xy     = zeros(nx-1,ny-1),
     G          = zeros(nx  ,ny  ),
-    G_xy       = zeros(nx-1,ny-1),
     r_Vx       = zeros(nx-1,ny-2),
     r_Vy       = zeros(nx-2,ny-1),
     dτ_r       = zeros(nx  ,ny  ),
@@ -158,8 +150,6 @@ function main()
     compte_η_G_ρg!(fields,η0,G0,ρg0,xc,yc,x0,y0c,y0d,r_cav,r_dep)
     fields.Pr   .= reverse(cumsum(reverse(fields.ρgy_c,dims=2),dims=2).*dy,dims=2)
     fields.ρgy  .= ameany(fields.ρgy_c)
-    fields.η_xy .= hmeanxy(fields.η)
-    fields.G_xy .= hmeanxy(fields.G)
     iter_evo = Float64[]
     errs_evo = ElasticMatrix{Float64}(undef,length(ϵtol),0)
     opts = (aspect_ratio=1, xlims=extrema(xc), ylims=extrema(yc), c=:turbo, framestyle=:box)
@@ -172,7 +162,7 @@ function main()
         errs = 2.0.*ϵtol; iter = 1
         resize!(iter_evo,0); resize!(errs_evo,length(ϵtol),0)
         while any(errs .>= ϵtol) && iter <= maxiter
-            update_iteration_params!(fields,dt,re_mech,vdτ,lτ,r)
+            update_iteration_params!(fields)
             update_stresses!(fields,dt,re_mech,vdτ,lτ,r,dx,dy)
             update_velocities!(fields,vdτ,lτ,re_mech,dx,dy)
             if iter % ncheck == 0
