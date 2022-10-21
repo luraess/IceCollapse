@@ -33,7 +33,7 @@ const av4 = amean4
     return
 end
 
-@views function update_iteration_params!((;η,ητ))
+@views function update_iteration_params!((;η,ητ,η_vep))
     # ητ[2:end-1,2:end-1] .= maxloc(amean.(η,η_vep)./2)
     ητ[2:end-1,2:end-1] .= maxloc(η); bc2!(ητ)
     return
@@ -44,8 +44,8 @@ end
     dτ_r   .= 1.0./(θ_dτ .+ η./(G.*dt) .+ 1.0)
     ∇V     .= diff(Vx,dims=1)./dx .+ diff(Vy,dims=2)./dy
     dPr    .= .-∇V .- (Pr .- Pr_old)./K./dt
-    # Pr    .+= r/θ_dτ.*ητ.*dPr                      # explicit
-    Pr    .+= dPr./(1.0./(r/θ_dτ.*ητ) .+ 1.0./K./dt) # implicit
+    # Pr    .+= r/θ_dτ.*η.*dPr                      # explicit
+    Pr    .+= dPr./(1.0./(r/θ_dτ.*η) .+ 1.0./K./dt) # implicit
     # strain rates
     εxx    .= diff(Vx,dims=1)./dx .- ∇V./3.0
     εyy    .= diff(Vy,dims=2)./dy .- ∇V./3.0
