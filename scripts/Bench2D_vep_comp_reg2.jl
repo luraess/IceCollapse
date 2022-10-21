@@ -63,7 +63,7 @@ end
     τII    .= sqrt.(0.5.*((τxx.+dτxx).^2 .+ (τyy.+dτyy).^2) .+ (τxy.+dτxy).^2)
     # yield function
     F      .= τII .- τ_y .- Pr.*sinϕ
-    λ      .= (1.0 .- relλ).*λ .+ relλ.*(max.(F,0.0)./(dτ_r .+ η_reg .+ K.*dt.*sinϕ.*sinψ))
+    λ      .= (1.0 .- relλ).*λ .+ relλ.*(max.(F,0.0)./(η.*dτ_r .+ η_reg .+ K.*dt.*sinϕ.*sinψ))
     dQdτxx .= 0.5.*(τxx.+dτxx)./τII
     dQdτyy .= 0.5.*(τyy.+dτyy)./τII
     dQdτxy .=      (τxy.+dτxy)./τII
@@ -152,7 +152,6 @@ function main()
     εxx        = zeros(nx  ,ny  ),
     εyy        = zeros(nx  ,ny  ),
     εxy        = zeros(nx  ,ny  ),
-    εII        = zeros(nx  ,ny  ),
     εxx_ve     = zeros(nx  ,ny  ),
     εyy_ve     = zeros(nx  ,ny  ),
     εxy_ve     = zeros(nx  ,ny  ),
@@ -199,7 +198,7 @@ function main()
         # visualisation
         fields.Vmag .= sqrt.(ameanx(fields.Vx).^2 + ameany(fields.Vy).^2)
         p1=heatmap(xc,yc,ameanx(fields.Vx)',title="Vx";opts...)
-        p2=heatmap(xc,yc,hmean.(fields.η_vep,fields.η)',title="η_vep";opts...)
+        p2=heatmap(xc,yc,fields.η_vep',title="η_vep";opts...)
         p3=heatmap(xc,yc,fields.τII',title="τII";opts...)
         p4=plot(evo_t,evo_τxx,legend=false,xlabel="time",ylabel="max(τxx)",linewidth=0,markershape=:circle,markersize=3,framestyle=:box)
         display(plot(p1,p2,p3,p4,layout=(2,2)))
