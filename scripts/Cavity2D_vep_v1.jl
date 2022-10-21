@@ -32,34 +32,32 @@ const av4 = amean4
     return
 end
 
-@views function update_iteration_params!((;η_veτ,η_veτ_xy,dτ_ρx,dτ_ρy,Gdτ,Gdτ_xy,η,η_xy,G,G_xy,ηb,ητ),dt,re_mech,vpdτ,lτ,r)
+@views function update_iteration_params!((;η_veτ,η,ητ))
     ητ[2:end-1,2:end-1] .= maxloc(η); bc2!(ητ)
-    # Gdτ      .= ητ.*(re_mech/lτ*vpdτ/(r+2.0))
-    # Gdτ_xy   .= avxy(Gdτ)
-    # dτ_ρx    .= vpdτ*lτ./re_mech./avx(ητ)
-    # dτ_ρy    .= vpdτ*lτ./re_mech./avy(ητ)
-    # η_veτ    .= 1.0./(1.0./Gdτ    .+ 1.0./η    .+ 1.0./(G.*dt))
-    # η_veτ_xy .= 1.0./(1.0./Gdτ_xy .+ 1.0./η_xy .+ 1.0./(G_xy.*dt))
     return
 end
 
-@views function update_stresses!((;Pr,dPr,τxx,τyy,τxy,τxx_old,τyy_old,τxy_old,Vx,Vy,∇V,η_veτ,η_veτ_xy,η,η_xy,Gdτ,G,G_xy,ηb,ητ,dτ_r),dt,re_mech,vdτ,lτ,r,dx,dy)
+@views function update_stresses!((;Pr,dPr,τxx,τyy,τxy,τxyv,τxx_old,τyy_old,τxy_old,εxx,εyy,εxy,εxyv,Vx,Vy,∇V,η,G,dτ_r),dt,re_mech,vdτ,lτ,r,dx,dy)
     θ_dτ   = lτ*(r+2.0)/(re_mech*vdτ)
     dτ_r  .= 1.0./(θ_dτ .+ η./(G.*dt) .+ 1.0)
     ∇V    .= diff(Vx,dims=1)./dx .+ diff(Vy,dims=2)./dy
     dPr   .= .-∇V
-    Pr   .+= (r/θ_dτ).*ητ.*dPr
-    τxx  .+= (.-(τxx .- τxx_old).*η./(G.*dt) .- τxx .+ 2.0.*η.*(diff(Vx,dims=1)./dx .- ∇V./3.0)).*dτ_r
-    τyy  .+= (.-(τyy .- τyy_old).*η./(G.*dt) .- τyy .+ 2.0.*η.*(diff(Vy,dims=2)./dy .- ∇V./3.0)).*dτ_r
-    τxy[2:end-1,2:end-1] .+= (.-(τxy[2:end-1,2:end-1] .- τxy_old[2:end-1,2:end-1]).*η_xy./(G_xy.*dt) .- τxy[2:end-1,2:end-1] .+ 
-                                 η_xy.*(diff(Vx[2:end-1,:],dims=2)./dy .+ diff(Vy[:,2:end-1],dims=1)./dx)).*avxy(dτ_r)
+    Pr   .+= (r/θ_dτ).*η.*dPr
+    εxx   .= diff(Vx,dims=1)./dx .- ∇V./3.0
+    εyy   .= diff(Vy,dims=2)./dy .- ∇V./3.0
+    εxyv[2:end-1,2:end-1] .= 0.5*(diff(Vx[2:end-1,:],dims=2)./dy .+ diff(Vy[:,2:end-1],dims=1)./dx)
+    εxy   .= ameanxy(εxyv)
+    τxx  .+= (.-(τxx .- τxx_old).*η./(G.*dt) .- τxx .+ 2.0.*η.*εxx).*dτ_r
+    τyy  .+= (.-(τyy .- τyy_old).*η./(G.*dt) .- τyy .+ 2.0.*η.*εyy).*dτ_r
+    τxy  .+= (.-(τxy .- τxy_old).*η./(G.*dt) .- τxy .+ 2.0.*η.*εxy).*dτ_r
+    τxyv[2:end-1,2:end-1] .= ameanxy(τxy)
     return
 end
 
-@views function update_velocities!((;Vx,Vy,Pr,τxx,τyy,τxy,dτ_ρx,dτ_ρy,η,ητ,ρgx,ρgy,phase),vdτ,lτ,re_mech,dx,dy)
+@views function update_velocities!((;Vx,Vy,Pr,τxx,τyy,τxyv,η,ητ,ρgx,ρgy,phase),vdτ,lτ,re_mech,dx,dy)
     nudτ = vdτ*lτ/re_mech
-    Vx[2:end-1,:] .+= (diff(.-Pr.+τxx,dims=1)./dx .+ diff(τxy[2:end-1,:],dims=2)./dy .- ρgx).*nudτ./avx(ητ)
-    Vy[:,2:end-1] .+= (diff(.-Pr.+τyy,dims=2)./dy .+ diff(τxy[:,2:end-1],dims=1)./dx .- ρgy).*nudτ./avy(ητ)
+    Vx[2:end-1,:] .+= (diff(.-Pr.+τxx,dims=1)./dx .+ diff(τxyv[2:end-1,:],dims=2)./dy .- ρgx).*nudτ./avx(ητ)
+    Vy[:,2:end-1] .+= (diff(.-Pr.+τyy,dims=2)./dy .+ diff(τxyv[:,2:end-1],dims=1)./dx .- ρgy).*nudτ./avy(ητ)
     Vx[:,1]       .= 1.0./3.0.*Vx[:,2]
     # Vx[end,:]     .= Vx[end-1,:] .+ 0.5.*dx./η[end,:].*(Pr[end,:] .+ 1.0./3.0.*(-Pr[end-1,:] .+ 2.0.*η[end-1,:].*(Vx[end-1,:] .- Vx[end-2,:])./dx))
     Vy[:,end]     .= Vy[:,end-1] .+ 0.5.*dy./η[:,end].*(Pr[:,end] .+ 1.0./3.0.*(-Pr[:,end-1] .+ 2.0.*η[:,end-1].*(Vy[:,end-1] .- Vy[:,end-2])./dy))
@@ -67,9 +65,9 @@ end
     return
 end
 
-@views function compute_residuals!((;r_Vx,r_Vy,Pr,τxx,τyy,τxy,ρgx,ρgy),dx,dy)
-    r_Vx .= diff(.-Pr[:,2:end-1].+τxx[:,2:end-1],dims=1)./dx .+ diff(τxy[2:end-1,2:end-1],dims=2)./dy .- ρgx[:,2:end-1]
-    r_Vy .= diff(.-Pr[2:end-1,:].+τyy[2:end-1,:],dims=2)./dy .+ diff(τxy[2:end-1,2:end-1],dims=1)./dx .- ρgy[2:end-1,:]
+@views function compute_residuals!((;r_Vx,r_Vy,Pr,τxx,τyy,τxyv,ρgx,ρgy),dx,dy)
+    r_Vx .= diff(.-Pr[:,2:end-1].+τxx[:,2:end-1],dims=1)./dx .+ diff(τxyv[2:end-1,2:end-1],dims=2)./dy .- ρgx[:,2:end-1]
+    r_Vy .= diff(.-Pr[2:end-1,:].+τyy[2:end-1,:],dims=2)./dy .+ diff(τxyv[2:end-1,2:end-1],dims=1)./dx .- ρgy[2:end-1,:]
     return
 end
 
@@ -124,10 +122,15 @@ function main()
     ∇V         = zeros(nx  ,ny  ),
     τxx        = zeros(nx  ,ny  ),
     τyy        = zeros(nx  ,ny  ),
-    τxy        = zeros(nx+1,ny+1),
+    τxy        = zeros(nx  ,ny  ),
+    τxyv       = zeros(nx+1,ny+1),
     τxx_old    = zeros(nx  ,ny  ),
     τyy_old    = zeros(nx  ,ny  ),
-    τxy_old    = zeros(nx+1,ny+1),
+    τxy_old    = zeros(nx  ,ny  ),
+    εxx        = zeros(nx  ,ny  ),
+    εyy        = zeros(nx  ,ny  ),
+    εxy        = zeros(nx  ,ny  ),
+    εxyv       = zeros(nx+1,ny+1),
     η          = zeros(nx  ,ny  ),
     η_xy       = zeros(nx-1,ny-1),
     τII        = zeros(nx  ,ny  ),
@@ -185,7 +188,7 @@ function main()
         push!(evo_t,t); push!(evo_τxx,maximum(fields.τxx))
         # visualisation
         fields.Vmag .= sqrt.(ameanx(fields.Vx).^2 + ameany(fields.Vy).^2)
-        fields.τII  .= sqrt.(0.5.*(fields.τxx.^2 .+ fields.τyy.^2) .+ ameanxy(fields.τxy).^2)
+        fields.τII  .= sqrt.(0.5.*(fields.τxx.^2 .+ fields.τyy.^2) .+ fields.τxy.^2)
         p1=heatmap(xc,yc,log10.(fields.η)',title="log10(η)";opts...)
         # p2=heatmap(xc,yc,mask' .* fields.Pr',title="Pressure";opts...)
         p2=heatmap(xc,yc,mask' .* fields.τII',title="Pressure";opts...)
