@@ -33,17 +33,13 @@ const av4 = amean4
     return
 end
 
-@views function update_iteration_params!((;η_veτ,dτ_ρx,dτ_ρy,Gdτ,η,G,ηb,ητ,η_vep),dt,re_mech,vpdτ,lτ,r,it)
+@views function update_iteration_params!((;η,ητ))
     # ητ[2:end-1,2:end-1] .= maxloc(amean.(η,η_vep)./2)
     ητ[2:end-1,2:end-1] .= maxloc(η); bc2!(ητ)
-    Gdτ   .= ητ.*(re_mech/lτ*vpdτ/(r+2.0))
-    dτ_ρx .= vpdτ*lτ./re_mech./avx(ητ)
-    dτ_ρy .= vpdτ*lτ./re_mech./avy(ητ)
-    η_veτ .= 1.0./(1.0./Gdτ .+ 1.0./η .+ 1.0./(G.*dt))
     return
 end
 
-@views function update_stresses!((;εxx_ve,εyy_ve,εxy_ve,εII_ve,Pr,Pr_c,εxx,εyy,εxy,εxyv,εII,dτxx,dτyy,dτxy,τxx,τyy,τxy,τxyv,τxx_old,τyy_old,τxy_old,Vx,Vy,∇V,η_veτ,η,ητ,G,ηb,F,λ,dQdτxx,dQdτyy,dQdτxy,τII,η_vep,dτ_r,Fchk,dPr,Pr_old),K,τ_y,sinϕ,sinψ,η_reg,relλ,dt,re_mech,vdτ,lτ,r,dx,dy)
+@views function update_stresses!((;εxx_ve,εyy_ve,εxy_ve,εII_ve,Pr,Pr_c,εxx,εyy,εxy,εxyv,εII,dτxx,dτyy,dτxy,τxx,τyy,τxy,τxyv,τxx_old,τyy_old,τxy_old,Vx,Vy,∇V,η,ητ,G,F,λ,dQdτxx,dQdτyy,dQdτxy,τII,η_vep,dτ_r,Fchk,dPr,Pr_old),K,τ_y,sinϕ,sinψ,η_reg,relλ,dt,re_mech,vdτ,lτ,r,dx,dy)
     θ_dτ    = lτ*(r+2.0)/(re_mech*vdτ)
     dτ_r   .= 1.0./(θ_dτ .+ η./(G.*dt) .+ 1.0)
     ∇V     .= diff(Vx,dims=1)./dx .+ diff(Vy,dims=2)./dy
@@ -142,14 +138,9 @@ function main()
     τxy_old    = zeros(nx  ,ny  ),
     τII        = zeros(nx  ,ny  ),
     Vmag       = zeros(nx  ,ny  ),
-    η_veτ      = zeros(nx  ,ny  ),
-    dτ_ρx      = zeros(nx-1,ny  ),
-    dτ_ρy      = zeros(nx  ,ny-1),
-    Gdτ        = zeros(nx  ,ny  ),
     dPr        = zeros(nx  ,ny  ),
     r_Vx       = zeros(nx-1,ny-2),
     r_Vy       = zeros(nx-2,ny-1),
-    ηb         = zeros(nx  ,ny  ),
     ητ         = zeros(nx  ,ny  ),
     dτ_r       = zeros(nx  ,ny  ),
     F          = zeros(nx  ,ny  ),
@@ -191,7 +182,7 @@ function main()
         errs = 2.0.*ϵtol; iter = 1
         resize!(iter_evo,0); resize!(errs_evo,length(ϵtol),0)
         while any(errs .>= ϵtol) && iter <= maxiter
-            update_iteration_params!(fields,dt,re_mech,vdτ,lτ,r,it)
+            update_iteration_params!(fields)
             update_stresses!(fields,K,τ_y,sinϕ,sinψ,η_reg,relλ,dt,re_mech,vdτ,lτ,r,dx,dy)
             update_velocities!(fields,vdτ,lτ,re_mech,dx,dy)
             if iter % ncheck == 0
