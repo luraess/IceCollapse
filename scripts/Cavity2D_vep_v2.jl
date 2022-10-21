@@ -98,7 +98,7 @@ end
     return
 end
 
-@views function compte_η_G_ρg!((;η,G,ρgy_c,phase,ηb),η0,G0,ρg0,xc,yc,x0,y0c,y0d,r_cav,r_dep,δ_sd)
+@views function compte_η_G_ρg!((;K,η,G,ρgy_c,phase,ηb),K0,η0,G0,ρg0,xc,yc,x0,y0c,y0d,r_cav,r_dep,δ_sd)
     Threads.@threads for iy in axes(η,2)
         for ix in axes(η,1)
             sd_air = min(sqrt((xc[ix]-x0)^2 + 2*(yc[iy]-y0c)^2)-r_cav,
@@ -107,6 +107,7 @@ end
             t_ice  = 1.0 - t_air
             η[ix,iy]     = t_ice*η0.ice  + t_air*η0.air
             G[ix,iy]     = t_ice*G0.ice  + t_air*G0.air
+            K[ix,iy]     = t_ice*K0.ice  + t_air*K0.air
             ρgy_c[ix,iy] = t_ice*ρg0.ice + t_air*ρg0.air
             phase[ix,iy] = 1.0 - t_air
             ηb[ix,iy]    = (1.0 - t_air)*1e12 + t_air*1.0
@@ -120,11 +121,12 @@ function main()
     lx,ly      = 20.0,10.0
     η0         = (ice = 1.0 , air = 1e-6)
     G0         = (ice = 1.0 , air = 1e6 )
+    K0         = (ice = 4.0 , air = 4e0 ) # 4*G0
     ρg0        = (ice = 0.9 , air = 0.0 )
     r_cav      = 0.4*min(lx,ly)
     r_dep      = 1.5*min(lx,ly)
     x0,y0c,y0d = 0.0,0.0*ly,1.4*ly
-    τ_y        = 2.5
+    τ_y        = 2.6
     sinϕ       = sind(30)
     sinψ       = sind(0)
     ξ          = 0.001
@@ -138,7 +140,7 @@ function main()
     ncheck     = ceil(Int,5max(nx,ny))
     r          = 0.7
     re_mech    = 3π
-    η_reg      = 1e-2#8.0e-3
+    η_reg      = 2e-2#8.0e-3
     relλ       = 0.2
     δ_sd       = 0.06#0.06
     # preprocessing
@@ -197,10 +199,9 @@ function main()
     η_vep      = zeros(nx  ,ny  ),
     )
     # initialisation
-    compte_η_G_ρg!(fields,η0,G0,ρg0,xc,yc,x0,y0c,y0d,r_cav,r_dep,δ_sd)
+    compte_η_G_ρg!(fields,K0,η0,G0,ρg0,xc,yc,x0,y0c,y0d,r_cav,r_dep,δ_sd)
+    fields.ρgy .= ameany(fields.ρgy_c)
     fields.Pr_c .= reverse(cumsum(reverse(fields.ρgy_c,dims=2),dims=2).*dy,dims=2)
-    fields.ρgy  .= ameany(fields.ρgy_c)
-    fields.K    .= 4.0.*fields.G
     iter_evo = Float64[]
     errs_evo = ElasticMatrix{Float64}(undef,length(ϵtol),0)
     opts = (aspect_ratio=1, xlims=extrema(xc), ylims=extrema(yc), c=:turbo, framestyle=:box)
@@ -208,8 +209,9 @@ function main()
     t = 0.0; evo_t=[]; evo_τxx=[]
     # time loop
     for it = 1:nt
-        compte_η_G_ρg!(fields,η0,G0,ρg0,xc,yc,x0,y0c,y0d,r_cav,r_dep,δ_sd)
         @printf("it=%d\n",it)
+        compte_η_G_ρg!(fields,K0,η0,G0,ρg0,xc,yc,x0,y0c,y0d,r_cav,r_dep,δ_sd)
+        fields.ρgy .= ameany(fields.ρgy_c)
         update_old!(fields)
         errs = 2.0.*ϵtol; iter = 1
         resize!(iter_evo,0); resize!(errs_evo,length(ϵtol),0)
@@ -238,7 +240,8 @@ function main()
         # p2=heatmap(xc,yc,mask' .* fields.τII',title="τII";opts...)
         p2=heatmap(xc,yc,mask' .* fields.η_vep',title="η_vep";opts...)
         # p2=heatmap(xc,yc,#=mask' .*=# fields.F',title="F";opts...)
-        p3=heatmap(xc[2:end-1],yc[2:end-1],mask[2:end-1,2:end-1]' .* ameany(fields.r_Vy)',title="Vmag";opts...)
+        # p3=heatmap(xc[2:end-1],yc[2:end-1],mask[2:end-1,2:end-1]' .* ameany(fields.r_Vy)',title="Vmag";opts...)
+        p3=heatmap(xc,yc,mask' .* fields.Vmag',title="Vmag";opts...)
         p4=plot(evo_t,evo_τxx,legend=false,xlabel="time",ylabel="max(τxx)",linewidth=0,markershape=:circle,markersize=3,framestyle=:box)
         display(plot(p1,p2,p3,p4,layout=(2,2)))
     end
