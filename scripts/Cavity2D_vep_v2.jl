@@ -123,10 +123,10 @@ function main()
     G0         = (ice = 1.0 , air = 1e6 )
     K0         = (ice = 4.0 , air = 4e0 ) # 4*G0
     ρg0        = (ice = 0.9 , air = 0.0 )
-    r_cav      = 0.4*min(lx,ly)
+    r_cav      = 0.5*min(lx,ly)
     r_dep      = 1.5*min(lx,ly)
     x0,y0c,y0d = 0.0,0.0*ly,1.4*ly
-    τ_y        = 2.6
+    τ_y        = 1.9
     sinϕ       = sind(30)
     sinψ       = sind(0)
     ξ          = 0.001
@@ -134,14 +134,14 @@ function main()
     # numerics
     nx         = 200
     ny         = ceil(Int,nx*ly/lx)
-    nt         = 50
+    nt         = 15
     ϵtol       = (1e-6,1e-6,1e-6)
     maxiter    = 60max(nx,ny)
     ncheck     = ceil(Int,5max(nx,ny))
     r          = 0.7
     re_mech    = 3π
-    η_reg      = 2e-2#8.0e-3
-    relλ       = 0.2
+    η_reg      = 3e-2#8.0e-3
+    relλ       = 0.1
     δ_sd       = 0.06#0.06
     # preprocessing
     dx,dy      = lx/nx,ly/ny
@@ -228,7 +228,7 @@ function main()
             end
             iter += 1
         end
-        r_cav += dx/2
+        r_cav += dx
         t += dt
         push!(evo_t,t); push!(evo_τxx,maximum(fields.τxx))
         # visualisation
@@ -237,11 +237,11 @@ function main()
         fields.τII  .= sqrt.(0.5.*(fields.τxx.^2 .+ fields.τyy.^2) .+ fields.τxy.^2)
         # p1=heatmap(xc,yc,log10.(fields.η)',title="log10(η)";opts...)
         p1=heatmap(xc,yc,mask' .* fields.Pr',title="Pressure";opts...)
-        # p2=heatmap(xc,yc,mask' .* fields.τII',title="τII";opts...)
+        p3=heatmap(xc,yc,mask' .* fields.τII',title="τII";opts...)
         p2=heatmap(xc,yc,mask' .* fields.η_vep',title="η_vep";opts...)
         # p2=heatmap(xc,yc,#=mask' .*=# fields.F',title="F";opts...)
         # p3=heatmap(xc[2:end-1],yc[2:end-1],mask[2:end-1,2:end-1]' .* ameany(fields.r_Vy)',title="Vmag";opts...)
-        p3=heatmap(xc,yc,mask' .* fields.Vmag',title="Vmag";opts...)
+        # p3=heatmap(xc,yc,mask' .* fields.Vmag',title="Vmag";opts...)
         p4=plot(evo_t,evo_τxx,legend=false,xlabel="time",ylabel="max(τxx)",linewidth=0,markershape=:circle,markersize=3,framestyle=:box)
         display(plot(p1,p2,p3,p4,layout=(2,2)))
     end
