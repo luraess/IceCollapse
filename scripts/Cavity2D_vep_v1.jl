@@ -20,17 +20,10 @@ const av4 = amean4
 @views hmeanx(A)  = hmean.(A[1:end-1,:], A[2:end,:])
 @views hmeany(A)  = hmean.(A[:,1:end-1], A[:,2:end])
 @views hmeanxy(A) = hmean4.(A[1:end-1,1:end-1],A[2:end,1:end-1],A[1:end-1,2:end],A[2:end,2:end])
-
-# 1. Viscous
-# (τ - τ_it)/Gdτ + τ/η = 2*e
-# τ*(1/Gdτ + 1/η) - τ_it/Gdτ = 2*e
-# τ += (-τ/η + 2*e)/(1/Gdτ + 1/η)
-# 2. Maxwell viscoelastic
-# (τ - τ_it)/Gdτ + τ/η + (τ - τ_old)/(G*dt) = 2*e
-# τ += (-(τ - τ_old)/(G*dt) - τ/η + 2*e)/(1/Gdτ + 1/η + 1/(G*dt))
-# Pressure
-# 1./Kdτ.*(Pr - Pr_it) + Pr./ηb = -∇V
-# Pr .+= (.-Pr./ηb .- ∇V)./(1.0/Kdτ + 1.0./ηb)
+@views maxloc(A)  = max.(A[1:end-2,1:end-2],A[1:end-2,2:end-1],A[1:end-2,3:end],
+                         A[2:end-1,1:end-2],A[2:end-1,2:end-1],A[2:end-1,3:end],
+                         A[3:end  ,1:end-2],A[3:end  ,2:end-1],A[3:end  ,3:end])
+@views bc2!(A)    = begin A[[1,end],:]=A[[2,end-1],:]; A[:,[1,end]]=A[:,[2,end-1]]; end
 
 @views function update_old!((;τxx_old,τyy_old,τxy_old,τxx,τyy,τxy))
     τxx_old .= τxx
@@ -40,32 +33,33 @@ const av4 = amean4
 end
 
 @views function update_iteration_params!((;η_veτ,η_veτ_xy,dτ_ρx,dτ_ρy,Gdτ,Gdτ_xy,η,η_xy,G,G_xy,ηb,ητ),dt,re_mech,vpdτ,lτ,r)
-    ητ[2:end-1,2:end-1]  .= max.(η[2:end-1,2:end-1],η[1:end-2,2:end-1],η[3:end  ,2:end-1],
-                                 η[2:end-1,1:end-2],η[2:end-1,3:end  ],η[1:end-2,1:end-2],
-                                 η[3:end  ,1:end-2],η[1:end-2,3:end  ],η[3:end  ,3:end  ],)
-    ητ[[1,end],:] .= ητ[[2,end-1],:]; ητ[:,[1,end]] .= ητ[:,[2,end-1]]
-    Gdτ      .= ητ.*(re_mech/lτ*vpdτ/(r+2.0))
-    Gdτ_xy   .= avxy(Gdτ)
-    dτ_ρx    .= vpdτ*lτ./re_mech./avx(ητ)
-    dτ_ρy    .= vpdτ*lτ./re_mech./avy(ητ)
-    η_veτ    .= 1.0./(1.0./Gdτ    .+ 1.0./η    .+ 1.0./(G.*dt))
-    η_veτ_xy .= 1.0./(1.0./Gdτ_xy .+ 1.0./η_xy .+ 1.0./(G_xy.*dt))
+    ητ[2:end-1,2:end-1] .= maxloc(η); bc2!(ητ)
+    # Gdτ      .= ητ.*(re_mech/lτ*vpdτ/(r+2.0))
+    # Gdτ_xy   .= avxy(Gdτ)
+    # dτ_ρx    .= vpdτ*lτ./re_mech./avx(ητ)
+    # dτ_ρy    .= vpdτ*lτ./re_mech./avy(ητ)
+    # η_veτ    .= 1.0./(1.0./Gdτ    .+ 1.0./η    .+ 1.0./(G.*dt))
+    # η_veτ_xy .= 1.0./(1.0./Gdτ_xy .+ 1.0./η_xy .+ 1.0./(G_xy.*dt))
     return
 end
 
-@views function update_stresses!((;Pr,τxx,τyy,τxy,τxx_old,τyy_old,τxy_old,Vx,Vy,∇V,η_veτ,η_veτ_xy,η,η_xy,Gdτ,G,G_xy,ηb),r,dt,dx,dy)
-    ∇V   .= diff(Vx,dims=1)./dx .+ diff(Vy,dims=2)./dy
-    Pr  .-= r.*Gdτ.*∇V
-    # Pr .+= (.-Pr./ηb .- ∇V)./(1.0./(r.*Gdτ) + 1.0./ηb)
-    τxx .+= (.-(τxx .- τxx_old)./(G.*dt) .- τxx./η .+ 2.0.*(diff(Vx,dims=1)./dx .- ∇V./3.0)).*η_veτ
-    τyy .+= (.-(τyy .- τyy_old)./(G.*dt) .- τyy./η .+ 2.0.*(diff(Vy,dims=2)./dy .- ∇V./3.0)).*η_veτ
-    τxy[2:end-1,2:end-1] .+= (.-(τxy[2:end-1,2:end-1] .- τxy_old[2:end-1,2:end-1])./(G_xy.*dt) .- τxy[2:end-1,2:end-1]./η_xy .+ (diff(Vx[2:end-1,:],dims=2)./dy .+ diff(Vy[:,2:end-1],dims=1)./dx)).*η_veτ_xy
+@views function update_stresses!((;Pr,dPr,τxx,τyy,τxy,τxx_old,τyy_old,τxy_old,Vx,Vy,∇V,η_veτ,η_veτ_xy,η,η_xy,Gdτ,G,G_xy,ηb,ητ,dτ_r),dt,re_mech,vdτ,lτ,r,dx,dy)
+    θ_dτ   = lτ*(r+2.0)/(re_mech*vdτ)
+    dτ_r  .= 1.0./(θ_dτ .+ η./(G.*dt) .+ 1.0)
+    ∇V    .= diff(Vx,dims=1)./dx .+ diff(Vy,dims=2)./dy
+    dPr   .= .-∇V
+    Pr   .+= (r/θ_dτ).*ητ.*dPr
+    τxx  .+= (.-(τxx .- τxx_old).*η./(G.*dt) .- τxx .+ 2.0.*η.*(diff(Vx,dims=1)./dx .- ∇V./3.0)).*dτ_r
+    τyy  .+= (.-(τyy .- τyy_old).*η./(G.*dt) .- τyy .+ 2.0.*η.*(diff(Vy,dims=2)./dy .- ∇V./3.0)).*dτ_r
+    τxy[2:end-1,2:end-1] .+= (.-(τxy[2:end-1,2:end-1] .- τxy_old[2:end-1,2:end-1]).*η_xy./(G_xy.*dt) .- τxy[2:end-1,2:end-1] .+ 
+                                 η_xy.*(diff(Vx[2:end-1,:],dims=2)./dy .+ diff(Vy[:,2:end-1],dims=1)./dx)).*avxy(dτ_r)
     return
 end
 
-@views function update_velocities!((;Vx,Vy,Pr,τxx,τyy,τxy,dτ_ρx,dτ_ρy,η,ρgx,ρgy,phase),dx,dy)
-    Vx[2:end-1,:] .+= dτ_ρx.*(diff(.-Pr.+τxx,dims=1)./dx .+ diff(τxy[2:end-1,:],dims=2)./dy .- ρgx)
-    Vy[:,2:end-1] .+= dτ_ρy.*(diff(.-Pr.+τyy,dims=2)./dy .+ diff(τxy[:,2:end-1],dims=1)./dx .- ρgy)
+@views function update_velocities!((;Vx,Vy,Pr,τxx,τyy,τxy,dτ_ρx,dτ_ρy,η,ητ,ρgx,ρgy,phase),vdτ,lτ,re_mech,dx,dy)
+    nudτ = vdτ*lτ/re_mech
+    Vx[2:end-1,:] .+= (diff(.-Pr.+τxx,dims=1)./dx .+ diff(τxy[2:end-1,:],dims=2)./dy .- ρgx).*nudτ./avx(ητ)
+    Vy[:,2:end-1] .+= (diff(.-Pr.+τyy,dims=2)./dy .+ diff(τxy[:,2:end-1],dims=1)./dx .- ρgy).*nudτ./avy(ητ)
     Vx[:,1]       .= 1.0./3.0.*Vx[:,2]
     # Vx[end,:]     .= Vx[end-1,:] .+ 0.5.*dx./η[end,:].*(Pr[end,:] .+ 1.0./3.0.*(-Pr[end-1,:] .+ 2.0.*η[end-1,:].*(Vx[end-1,:] .- Vx[end-2,:])./dx))
     Vy[:,end]     .= Vy[:,end-1] .+ 0.5.*dy./η[:,end].*(Pr[:,end] .+ 1.0./3.0.*(-Pr[:,end-1] .+ 2.0.*η[:,end-1].*(Vy[:,end-1] .- Vy[:,end-2])./dy))
@@ -110,7 +104,7 @@ function main()
     # numerics
     nx         = 256
     ny         = ceil(Int,nx*ly/lx)
-    nt         = 5
+    nt         = 1
     ϵtol       = (1e-6,1e-6,1e-6)
     maxiter    = 50max(nx,ny)
     ncheck     = ceil(Int,5max(nx,ny))
@@ -121,7 +115,7 @@ function main()
     xv,yv      = LinRange(-lx/2,lx/2,nx+1),LinRange(0,ly,ny+1)
     xc,yc      = amean1(xv),amean1(yv)
     lτ         = min(lx,ly)
-    vpdτ       = 0.5*min(dx,dy)/sqrt(2.1)
+    vdτ        = 0.5*min(dx,dy)/sqrt(2.1)
     # array allocation
     fields = (
     Vx         = zeros(nx+1,ny  ),
@@ -138,6 +132,7 @@ function main()
     η_xy       = zeros(nx-1,ny-1),
     τII        = zeros(nx  ,ny  ),
     Vmag       = zeros(nx  ,ny  ),
+    dPr        = zeros(nx  ,ny  ),
     η_veτ      = zeros(nx  ,ny  ),
     η_veτ_xy   = zeros(nx-1,ny-1),
     dτ_ρx      = zeros(nx-1,ny  ),
@@ -148,6 +143,7 @@ function main()
     G_xy       = zeros(nx-1,ny-1),
     r_Vx       = zeros(nx-1,ny-2),
     r_Vy       = zeros(nx-2,ny-1),
+    dτ_r       = zeros(nx  ,ny  ),
     ρgy_c      = zeros(nx  ,ny  ),
     ρgx        = zeros(nx-1,ny  ),
     ρgy        = zeros(nx  ,ny-1),
@@ -173,13 +169,13 @@ function main()
         errs = 2.0.*ϵtol; iter = 1
         resize!(iter_evo,0); resize!(errs_evo,length(ϵtol),0)
         while any(errs .>= ϵtol) && iter <= maxiter
-            update_iteration_params!(fields,dt,re_mech,vpdτ,lτ,r)
-            update_stresses!(fields,r,dt,dx,dy)
-            update_velocities!(fields,dx,dy)
+            update_iteration_params!(fields,dt,re_mech,vdτ,lτ,r)
+            update_stresses!(fields,dt,re_mech,vdτ,lτ,r,dx,dy)
+            update_velocities!(fields,vdτ,lτ,re_mech,dx,dy)
             if iter % ncheck == 0
                 # update residuals
                 compute_residuals!(fields,dx,dy)
-                errs = maximum.((abs.(fields.r_Vx),abs.(fields.r_Vy),abs.(fields.∇V)))
+                errs = maximum.((abs.(fields.r_Vx),abs.(fields.r_Vy),abs.(fields.dPr)))
                 push!(iter_evo,iter/max(nx,ny));append!(errs_evo,errs)
                 @printf("  iter/nx=%.3f,errs=[ %1.3e, %1.3e, %1.3e ]\n",iter/max(nx,ny),errs...)
             end
