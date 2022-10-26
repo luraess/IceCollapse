@@ -75,9 +75,9 @@ end
     τyy   .+= (.-(τyy .- τyy_old).*η./(G.*dt) .- τyy .+ 2.0.*η.*(εyy .-      λ.*dQdτyy)).*dτ_r
     τxy   .+= (.-(τxy .- τxy_old).*η./(G.*dt) .- τxy .+ 2.0.*η.*(εxy .- 0.5.*λ.*dQdτxy)).*dτ_r
     τxyv[2:end-1,2:end-1] .= ameanxy(τxy)
-    τII   .= sqrt.(0.5.*(τxx.^2 .+ τyy.^2) .+ τxy.^2)
-    Fchk  .= τII .- τ_y .- Pr_c.*sinϕ .- λ.*η_reg
-    η_vep .= τII ./ 2.0 ./ εII_ve
+    τII    .= sqrt.(0.5.*(τxx.^2 .+ τyy.^2) .+ τxy.^2)
+    Fchk   .= τII .- τ_y .- Pr_c.*sinϕ .- λ.*η_reg
+    η_vep  .= τII ./ 2.0 ./ εII_ve
     return
 end
 
