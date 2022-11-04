@@ -1,6 +1,6 @@
 using ElasticArrays,Printf
 using Plots,Plots.Measures
-default(size=(800,500),framestyle=:box,label=false,grid=false,margin=3mm,lw=6,labelfontsize=11,tickfontsize=11,titlefontsize=11)
+default(size=(900,500),framestyle=:box,label=false,grid=false,margin=2mm,lw=6,labelfontsize=9,tickfontsize=9,titlefontsize=10)
 # using GLMakie
 # include("vis_helpers.jl")
 
@@ -132,7 +132,7 @@ function main()
     ξ          = 0.001
     dt         = η0.ice/(G0.ice*ξ)
     # numerics
-    nx         = 200
+    nx         = 300
     ny         = ceil(Int,nx*ly/lx)
     nt         = 15
     ϵtol       = (1e-6,1e-6,1e-6)
@@ -207,6 +207,7 @@ function main()
     opts = (aspect_ratio=1, xlims=extrema(xc), ylims=extrema(yc), c=:turbo, framestyle=:box)
     mask = copy(fields.phase); mask[mask.<0.7].=NaN
     t = 0.0; evo_t=[]; evo_τxx=[]
+    # ispath("anim")&&rm("anim",recursive=true);mkdir("anim");iframe = -1
     # time loop
     for it = 1:nt
         @printf("it=%d\n",it)
@@ -241,9 +242,10 @@ function main()
         p2=heatmap(xc,yc,mask' .* fields.η_vep',title="η_vep";opts...)
         # p2=heatmap(xc,yc,#=mask' .*=# fields.F',title="F";opts...)
         # p3=heatmap(xc[2:end-1],yc[2:end-1],mask[2:end-1,2:end-1]' .* ameany(fields.r_Vy)',title="Vmag";opts...)
-        # p3=heatmap(xc,yc,mask' .* fields.Vmag',title="Vmag";opts...)
-        p4=plot(evo_t,evo_τxx,legend=false,xlabel="time",ylabel="max(τxx)",linewidth=0,markershape=:circle,markersize=3,framestyle=:box)
+        p4=heatmap(xc,yc,mask' .* fields.Vmag',title="Vmag";opts...)
+        # p4=plot(evo_t,evo_τxx,legend=false,xlabel="time",ylabel="max(τxx)",linewidth=0,markershape=:circle,markersize=3,framestyle=:box)
         display(plot(p1,p2,p3,p4,layout=(2,2)))
+        # png(plot(p1,p2,p3,p4,layout=(2,2)),@sprintf("anim/%04d.png",iframe+=1))
     end
     return
 end
