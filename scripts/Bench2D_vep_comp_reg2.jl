@@ -39,7 +39,7 @@ end
     return
 end
 
-@views function update_stresses!((;εxx_ve,εyy_ve,εxy_ve,εII_ve,Pr,Pr_c,εxx,εyy,εxy,εxyv,εII,dτxx,dτyy,dτxy,τxx,τyy,τxy,τxyv,τxx_old,τyy_old,τxy_old,Vx,Vy,∇V,η,ητ,G,F,λ,dQdτxx,dQdτyy,dQdτxy,τII,η_vep,dτ_r,Fchk,dPr,Pr_old),K,τ_y,sinϕ,sinψ,η_reg,relλ,dt,re_mech,vdτ,lτ,r,dx,dy)
+@views function update_stresses!((;εxx_ve,εyy_ve,εxy_ve,εII_ve,Pr,Pr_c,εxx,εyy,εxy,εxyv,dτxx,dτyy,dτxy,τxx,τyy,τxy,τxyv,τxx_old,τyy_old,τxy_old,Vx,Vy,∇V,η,ητ,G,F,λ,dQdτxx,dQdτyy,dQdτxy,τII,η_vep,dτ_r,Fchk,dPr,Pr_old),K,τ_y,sinϕ,sinψ,η_reg,relλ,dt,re_mech,vdτ,lτ,r,dx,dy)
     θ_dτ    = lτ*(r+2.0)/(re_mech*vdτ)
     dτ_r   .= 1.0./(θ_dτ .+ η./(G.*dt) .+ 1.0)
     ∇V     .= diff(Vx,dims=1)./dx .+ diff(Vy,dims=2)./dy
@@ -106,7 +106,7 @@ function main()
     εbg        = 1.0
     dt         = η0/G0/ξ/1.5
     # numerics
-    nx,ny      = 127,127
+    nx,ny      = 63,63
     nt         = 50
     η_reg      = 8.0e-3
     ϵtol       = (1e-6,1e-6,1e-6)
